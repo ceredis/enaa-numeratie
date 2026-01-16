@@ -3,20 +3,22 @@ import React, { useState } from 'react';
 import SpeechSynthesis from './SpeechSynthesis';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import TeacherAvatar from './TeacherAvatar';
+import TeacherAvatar, { AnimationType } from './TeacherAvatar';
 
 interface TeacherBubbleProps {
   message: string;
   speak: boolean;
   onSpeechEnd?: () => void;
   use3DAvatar?: boolean;
+  animationType?: AnimationType;
 }
 
 const TeacherBubble: React.FC<TeacherBubbleProps> = ({ 
   message, 
   speak, 
   onSpeechEnd,
-  use3DAvatar = false
+  use3DAvatar = false,
+  animationType = 'idle'
 }) => {
   const [avatarLoaded, setAvatarLoaded] = useState(false);
 
@@ -41,6 +43,7 @@ const TeacherBubble: React.FC<TeacherBubbleProps> = ({
               <directionalLight position={[10, 10, 5]} intensity={1} />
               <TeacherAvatar 
                 isSpeaking={speak} 
+                animationType={animationType}
                 onLoad={() => setAvatarLoaded(true)} 
                 position={[0, -1.0, 0]} 
                 scale={0.95}

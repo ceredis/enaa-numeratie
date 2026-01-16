@@ -1,18 +1,41 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import AppLayout from '@/components/AppLayout';
 import LevelSelector from '@/components/LevelSelector';
 import GameArea from '@/components/GameArea';
 import TeacherSection from '@/components/TeacherSection';
 import { useGameState } from '@/hooks/useGameState';
 import MainNavigation from '@/components/MainNavigation';
+import { AnimationType } from '@/components/TeacherAvatar';
 
 const CalculEcrit: React.FC = () => {
   const gameState = useGameState();
-  const { gameModule, moduleLevel, message, speak, handleChangeModule, handleChangeLevel, setSpeak } = gameState;
+  const { gameModule, moduleLevel, message, speak, phase, handleChangeModule, handleChangeLevel, setSpeak } = gameState;
   
   // Whether to use 3D avatar or 2D image
   const use3DAvatar = true;
+  
+  // Déterminer le type d'animation basé sur la phase du jeu
+  const animationType: AnimationType = useMemo(() => {
+    switch (phase) {
+      case 'intro':
+        return 'idle';
+      case 'redCount':
+      case 'blueCount':
+      case 'totalCount':
+      case 'totalFirst':
+      case 'secondColor':
+      case 'vennDiagram':
+      case 'equation':
+        return 'encouraging'; // Encourage pendant les phases de comptage
+      case 'verify':
+        return 'celebrating'; // Célébration après vérification
+      case 'result':
+        return 'celebrating'; // Célébration pour les résultats
+      default:
+        return 'idle';
+    }
+  }, [phase]);
   
   return (
     <AppLayout>
@@ -54,6 +77,7 @@ const CalculEcrit: React.FC = () => {
             speak={speak} 
             onSpeechEnd={() => setSpeak(false)} 
             use3DAvatar={use3DAvatar}
+            animationType={animationType}
             className="leading-relaxed space-y-6 mb-12"
           />
         </div>
