@@ -72,12 +72,13 @@ const CalculEcrit: React.FC = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <GameArea gameState={gameState} />
-          <TeacherSection 
-            message={message} 
-            speak={speak} 
-            onSpeechEnd={() => setSpeak(false)} 
+          <TeacherSection
+            message={message}
+            speak={speak}
+            onSpeechEnd={() => setSpeak(false)}
             use3DAvatar={use3DAvatar}
             animationType={animationType}
+            animationContextKey={phase}
             className="leading-relaxed space-y-6 mb-12"
           />
         </div>

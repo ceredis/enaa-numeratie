@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -13,119 +13,209 @@ interface TeacherAvatarProps {
   rotation?: [number, number, number];
   isSpeaking: boolean;
   animationType?: AnimationType;
+  /**
+   * Quand cette clé change (ex: phase du jeu), l'avatar choisit une nouvelle
+   * variation d'animation pour éviter de répéter indéfiniment les mêmes gestes.
+   */
+  animationContextKey?: string;
   onLoad?: () => void;
 }
 
-const TeacherAvatar: React.FC<TeacherAvatarProps> = ({ 
-  position = [0, -0.5, 0], 
+type AnimationCategory = 'idle' | 'instructions' | 'encourage' | 'celebrate';
+
+const FADE = 0.25;
+
+function pickRandom<T>(arr: T[], seed: string): T {
+  // Hash simple et déterministe (pour stabiliser un choix par "contextKey")
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const idx = Math.abs(h) % arr.length;
+  return arr[idx];
+}
+
+const TeacherAvatar: React.FC<TeacherAvatarProps> = ({
+  position = [0, -0.5, 0],
   scale = 1.0,
   rotation = [0, 0, 0],
   isSpeaking,
   animationType = 'idle',
-  onLoad
+  animationContextKey,
+  onLoad,
 }) => {
   const group = useRef<THREE.Group>(null);
   const { scene } = useGLTF('/teacher-avatar.glb');
-  
-  // Chargement des fichiers d'animation
-  const idleAnimations = useGLTF('/F_Standing_Idle_001.glb');
-  const talkingAnimations = useGLTF('/M_Talking_Variations_008.glb');
-  
-  // Combiner les animations de toutes les sources
-  const animations = [
-    ...(idleAnimations.animations || []),
-    ...(talkingAnimations.animations || [])
-  ];
-  
-  // Utiliser les animations avec la scène
-  const { actions, mixer } = useAnimations(animations, group);
+
+  // Animations prêtes à l'emploi (Ready Player Me) depuis /public/models
+  const idle1 = useGLTF('/models/Standing_Idle_01.glb');
+  const idle2 = useGLTF('/models/Standing_Idle_02.glb');
+  const idle3 = useGLTF('/models/Standing_Idle_03.glb');
+
+  const expr1 = useGLTF('/models/M_Standing_Expressions_004.glb');
+  const expr2 = useGLTF('/models/M_Standing_Expressions_005.glb');
+  const expr3 = useGLTF('/models/M_Standing_Expressions_012.glb');
+
+  const instr1 = useGLTF('/models/Talking_Instructions_01.glb');
+  const instr2 = useGLTF('/models/Talking_Instructions_02.glb');
+  const instr3 = useGLTF('/models/Talking_Instructions_03.glb');
+
+  const enc1 = useGLTF('/models/Talking_Encourage_01.glb');
+  const enc2 = useGLTF('/models/Talking_Encourage_02.glb');
+  const enc4 = useGLTF('/models/Talking_Encourage_04.glb');
+
+  const dance1 = useGLTF('/models/Dance_01.glb');
+  const dance2 = useGLTF('/models/Dance_02.glb');
+  const dance3 = useGLTF('/models/Dance_03.glb');
+
+  // Combine toutes les pistes d'animation pour disposer d'un mixer unique
+  const allClips = useMemo(() => {
+    const clips: THREE.AnimationClip[] = [];
+    const add = (gltf: any) => {
+      if (gltf?.animations?.length) clips.push(...gltf.animations);
+    };
+
+    add(idle1);
+    add(idle2);
+    add(idle3);
+    add(expr1);
+    add(expr2);
+    add(expr3);
+
+    add(instr1);
+    add(instr2);
+    add(instr3);
+
+    add(enc1);
+    add(enc2);
+    add(enc4);
+
+    add(dance1);
+    add(dance2);
+    add(dance3);
+
+    return clips;
+  }, [idle1, idle2, idle3, expr1, expr2, expr3, instr1, instr2, instr3, enc1, enc2, enc4, dance1, dance2, dance3]);
+
+  const { mixer } = useAnimations(allClips, group);
+
   const [currentAction, setCurrentAction] = useState<THREE.AnimationAction | null>(null);
-  const prevAnimationRef = useRef<string>('');
+  const currentCategoryRef = useRef<AnimationCategory | null>(null);
+  const currentContextRef = useRef<string>('');
 
   useEffect(() => {
-    if (onLoad) {
-      onLoad();
-    }
+    onLoad?.();
   }, [onLoad]);
 
-  // Déterminer quelle animation utiliser en fonction du contexte
-  const getAnimationToUse = () => {
-    // Si le personnage parle, utiliser l'animation de parole
-    if (isSpeaking) {
-      return { animations: talkingAnimations.animations, name: 'talking' };
-    }
-    
-    // Sinon, utiliser l'animation basée sur le type
+  const category: AnimationCategory = useMemo(() => {
+    // La parole (TTS) doit prioriser une animation "consignes" / talk
+    if (isSpeaking) return 'instructions';
+
     switch (animationType) {
       case 'celebrating':
-        // Pour célébrer, on peut utiliser l'animation de parole avec plus d'énergie
-        return { animations: talkingAnimations.animations, name: 'celebrating' };
+        return 'celebrate';
       case 'encouraging':
-        // Pour encourager, utiliser l'animation de parole
-        return { animations: talkingAnimations.animations, name: 'encouraging' };
+        return 'encourage';
       case 'talking':
-        return { animations: talkingAnimations.animations, name: 'talking' };
+        return 'instructions';
       case 'idle':
       default:
-        return { animations: idleAnimations.animations, name: 'idle' };
+        return 'idle';
     }
-  };
+  }, [animationType, isSpeaking]);
 
-  // Effet pour gérer les animations en fonction de l'état
+  const pool: THREE.AnimationClip[] = useMemo(() => {
+    const clipsFor = (gltf: any) => (gltf?.animations?.length ? gltf.animations : []);
+
+    switch (category) {
+      case 'instructions':
+        return [...clipsFor(instr1), ...clipsFor(instr2), ...clipsFor(instr3)];
+      case 'encourage':
+        return [...clipsFor(enc1), ...clipsFor(enc2), ...clipsFor(enc4)];
+      case 'celebrate':
+        return [...clipsFor(dance1), ...clipsFor(dance2), ...clipsFor(dance3)];
+      case 'idle':
+      default:
+        // Idle + expressions faciales
+        return [
+          ...clipsFor(idle1),
+          ...clipsFor(idle2),
+          ...clipsFor(idle3),
+          ...clipsFor(expr1),
+          ...clipsFor(expr2),
+          ...clipsFor(expr3),
+        ];
+    }
+  }, [category, idle1, idle2, idle3, expr1, expr2, expr3, instr1, instr2, instr3, enc1, enc2, enc4, dance1, dance2, dance3]);
+
   useEffect(() => {
     if (!mixer || !group.current) return;
-    
-    const { animations: animationToUse, name: animName } = getAnimationToUse();
-    const animationKey = `${animName}-${isSpeaking}`;
-    
-    // Ne pas relancer si c'est la même animation
-    if (prevAnimationRef.current === animationKey) return;
-    prevAnimationRef.current = animationKey;
-    
-    console.log("TeacherAvatar animation:", animName, "isSpeaking:", isSpeaking);
-    
-    // Arrêter l'animation en cours si elle existe
+    if (!pool.length) return;
+
+    const contextKey = `${category}::${animationContextKey ?? ''}::${isSpeaking ? 'speaking' : 'silent'}`;
+
+    // On relance si (1) catégorie change, ou (2) contexte change
+    const shouldReselect =
+      currentCategoryRef.current !== category ||
+      currentContextRef.current !== contextKey;
+
+    if (!shouldReselect) return;
+
+    currentCategoryRef.current = category;
+    currentContextRef.current = contextKey;
+
+    const clipSeed = `${contextKey}`;
+    const selectedClip = pickRandom(pool, clipSeed);
+
+    // Fade-out de l'action précédente
     if (currentAction) {
-      currentAction.fadeOut(0.3);
+      currentAction.fadeOut(FADE);
     }
-    
-    if (animationToUse && animationToUse.length > 0) {
-      const action = mixer.clipAction(animationToUse[0], group.current);
-      
-      // Ajuster la vitesse selon le type d'animation
-      if (animationType === 'celebrating') {
-        action.timeScale = 1.3; // Plus rapide pour célébrer
-      } else if (animationType === 'encouraging') {
-        action.timeScale = 1.1;
-      } else {
-        action.timeScale = 1.0;
-      }
-      
-      action.reset().fadeIn(0.3).play();
-      setCurrentAction(action);
-      console.log(`Playing ${animName} animation`);
+
+    const next = mixer.clipAction(selectedClip, group.current);
+
+    // Réglages par type
+    if (category === 'celebrate') {
+      next.setLoop(THREE.LoopOnce, 1);
+      next.clampWhenFinished = true;
+      next.timeScale = 1.15;
+    } else if (category === 'encourage') {
+      next.setLoop(THREE.LoopRepeat, Infinity);
+      next.timeScale = 1.05;
+    } else if (category === 'instructions') {
+      next.setLoop(THREE.LoopRepeat, Infinity);
+      next.timeScale = 1.0;
     } else {
-      console.warn(`No ${animName} animations found`);
+      next.setLoop(THREE.LoopRepeat, Infinity);
+      next.timeScale = 1.0;
     }
 
-    return () => {
-      if (currentAction) {
-        currentAction.fadeOut(0.3);
-      }
+    next.reset().fadeIn(FADE).play();
+    setCurrentAction(next);
+
+    // Si c'est une animation "one-shot", revenir à l'idle une fois terminée
+    const onFinished = (e: any) => {
+      if (e?.action !== next) return;
+      if (category !== 'celebrate') return;
+      // Après célébration, on bascule sur idle (via un changement de contexte)
+      currentContextRef.current = '';
     };
-  }, [mixer, isSpeaking, animationType]);
 
-  // Boucle d'animation pour mettre à jour le mixer
+    mixer.addEventListener('finished', onFinished);
+    return () => {
+      mixer.removeEventListener('finished', onFinished);
+    };
+  }, [mixer, pool, category, animationContextKey, isSpeaking, currentAction]);
+
   useFrame((state, delta) => {
-    if (mixer) {
-      mixer.update(delta);
-    }
-    
-    // Appliquer une légère animation flottante (plus prononcée quand on célèbre)
+    if (mixer) mixer.update(delta);
+
+    // Légère animation flottante (un peu plus marquée pendant la célébration)
     if (group.current) {
       const baseY = position[1];
-      const floatAmplitude = animationType === 'celebrating' ? 0.05 : 0.03;
-      const floatSpeed = animationType === 'celebrating' ? 0.8 : 0.5;
+      const floatAmplitude = category === 'celebrate' ? 0.05 : 0.03;
+      const floatSpeed = category === 'celebrate' ? 0.8 : 0.5;
       group.current.position.y = baseY + Math.sin(state.clock.elapsedTime * floatSpeed) * floatAmplitude;
     }
   });
@@ -139,7 +229,21 @@ const TeacherAvatar: React.FC<TeacherAvatarProps> = ({
 
 // Précharger les modèles
 useGLTF.preload('/teacher-avatar.glb');
-useGLTF.preload('/F_Standing_Idle_001.glb');
-useGLTF.preload('/M_Talking_Variations_008.glb');
+useGLTF.preload('/models/Standing_Idle_01.glb');
+useGLTF.preload('/models/Standing_Idle_02.glb');
+useGLTF.preload('/models/Standing_Idle_03.glb');
+useGLTF.preload('/models/M_Standing_Expressions_004.glb');
+useGLTF.preload('/models/M_Standing_Expressions_005.glb');
+useGLTF.preload('/models/M_Standing_Expressions_012.glb');
+useGLTF.preload('/models/Talking_Instructions_01.glb');
+useGLTF.preload('/models/Talking_Instructions_02.glb');
+useGLTF.preload('/models/Talking_Instructions_03.glb');
+useGLTF.preload('/models/Talking_Encourage_01.glb');
+useGLTF.preload('/models/Talking_Encourage_02.glb');
+useGLTF.preload('/models/Talking_Encourage_04.glb');
+useGLTF.preload('/models/Dance_01.glb');
+useGLTF.preload('/models/Dance_02.glb');
+useGLTF.preload('/models/Dance_03.glb');
 
 export default TeacherAvatar;
+
