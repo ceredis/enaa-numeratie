@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getPhaseMessage } from '@/utils/gameLogic';
 import { GameStateInitialization } from './useGameInitialization';
 
@@ -32,9 +32,12 @@ export function useGameHandlers(gameState: GameStateInitialization) {
     initNewRound
   } = gameState;
   
-  // Set initial message
+  // Track previous phase to detect phase changes
+  const prevPhaseRef = useRef<string>(phase);
+  
+  // Set message and trigger speech when phase changes
   useEffect(() => {
-    setMessage(getPhaseMessage(
+    const newMessage = getPhaseMessage(
       phase,
       gameModule,
       moduleLevel,
@@ -47,7 +50,15 @@ export function useGameHandlers(gameState: GameStateInitialization) {
       5, // TOTAL_QUESTIONS
       isSoustractionMode,
       firstColorIsRed
-    ));
+    );
+    
+    setMessage(newMessage);
+    
+    // Trigger speech on phase change
+    if (prevPhaseRef.current !== phase) {
+      setSpeak(true);
+      prevPhaseRef.current = phase;
+    }
   }, [
     phase,
     gameModule,
@@ -61,7 +72,8 @@ export function useGameHandlers(gameState: GameStateInitialization) {
     score,
     isSoustractionMode,
     firstColorIsRed,
-    setMessage
+    setMessage,
+    setSpeak
   ]);
 
   const handleSubmitRed = (count: number | string) => {
