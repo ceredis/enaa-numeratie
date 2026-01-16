@@ -114,15 +114,14 @@ const GameArea: React.FC<GameAreaProps> = ({ gameState }) => {
         level={moduleLevel}
       />
       
-      {/* Show star rating during verification phase */}
-      {phase === 'verify' && (
-        <div className="flex justify-center my-2">
-          <StarRating 
-            rating={totalAttempts === 1 ? 3 : (totalAttempts === 2 ? 2 : 1)} 
-            size="lg"
-          />
-        </div>
-      )}
+      {/* Show star rating for progress - stars fill based on correct answers */}
+      <div className="flex justify-center my-2">
+        <StarRating 
+          rating={Math.min(questionNumber - 1, TOTAL_QUESTIONS)}
+          maxRating={TOTAL_QUESTIONS}
+          size="lg"
+        />
+      </div>
       
       {/* Venn diagram only for levels > 2 (module 2) */}
       {moduleLevel > 2 && (
