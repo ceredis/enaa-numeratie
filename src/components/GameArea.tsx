@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import GameScene from '@/components/GameScene';
 import VennDiagram from '@/components/VennDiagram';
 import EquationInput from '@/components/EquationInput';
@@ -51,6 +51,18 @@ const GameArea: React.FC<GameAreaProps> = ({ gameState }) => {
     resetStreak
   } = useGamification();
 
+  // Local counter for correct answers in current game session (for star display)
+  const [sessionCorrectAnswers, setSessionCorrectAnswers] = useState(0);
+  const prevPhaseRef = useRef<string>(phase);
+
+  // Reset session correct answers when game restarts (phase goes back to intro)
+  useEffect(() => {
+    if (phase === 'intro' && prevPhaseRef.current !== 'intro') {
+      setSessionCorrectAnswers(0);
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
+
   // When a question is answered correctly
   useEffect(() => {
     if (phase === 'verify' && totalAttempts > 0) {
@@ -65,6 +77,9 @@ const GameArea: React.FC<GameAreaProps> = ({ gameState }) => {
         incrementScore(points);
         incrementCorrectAnswers();
         incrementStreak();
+        
+        // Increment local session counter for star display
+        setSessionCorrectAnswers(prev => prev + 1);
         
         // Only trigger confetti for perfect answers (first attempt)
         if (totalAttempts === 1) {
@@ -114,10 +129,10 @@ const GameArea: React.FC<GameAreaProps> = ({ gameState }) => {
         level={moduleLevel}
       />
       
-      {/* Show star rating for progress - stars fill based on correct answers */}
+      {/* Show star rating for progress - stars fill based on correct answers only */}
       <div className="flex justify-center my-2">
         <StarRating 
-          rating={Math.min(questionNumber - 1, TOTAL_QUESTIONS)}
+          rating={Math.min(sessionCorrectAnswers, TOTAL_QUESTIONS)}
           maxRating={TOTAL_QUESTIONS}
           size="lg"
         />
