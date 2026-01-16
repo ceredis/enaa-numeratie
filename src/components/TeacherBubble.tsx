@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import SpeechSynthesis from './SpeechSynthesis';
 import { Canvas } from '@react-three/fiber';
@@ -11,14 +10,17 @@ interface TeacherBubbleProps {
   onSpeechEnd?: () => void;
   use3DAvatar?: boolean;
   animationType?: AnimationType;
+  /** Force un choix/refresh de variation quand cette valeur change (ex: phase). */
+  animationContextKey?: string;
 }
 
-const TeacherBubble: React.FC<TeacherBubbleProps> = ({ 
-  message, 
-  speak, 
+const TeacherBubble: React.FC<TeacherBubbleProps> = ({
+  message,
+  speak,
   onSpeechEnd,
   use3DAvatar = false,
-  animationType = 'idle'
+  animationType = 'idle',
+  animationContextKey,
 }) => {
   const [avatarLoaded, setAvatarLoaded] = useState(false);
 
@@ -31,26 +33,27 @@ const TeacherBubble: React.FC<TeacherBubbleProps> = ({
       {use3DAvatar ? (
         <div className="w-64 h-[470px] relative mt-2">
           {!avatarLoaded && (
-            <img 
-              src="/lovable-uploads/e4e7aa88-b633-45df-8859-71a60a13e30a.png" 
-              alt="Institutrice (chargement…)" 
-              className="w-full h-full object-contain absolute top-0 left-0 z-10 animate-pulse" 
+            <img
+              src="/lovable-uploads/e4e7aa88-b633-45df-8859-71a60a13e30a.png"
+              alt="Institutrice (chargement…)"
+              className="w-full h-full object-contain absolute top-0 left-0 z-10 animate-pulse"
             />
           )}
           <div className="w-full h-full">
             <Canvas camera={{ position: [0, 0.2, 2.5], fov: 40 }}>
               <ambientLight intensity={0.5} />
               <directionalLight position={[10, 10, 5]} intensity={1} />
-              <TeacherAvatar 
-                isSpeaking={speak} 
+              <TeacherAvatar
+                isSpeaking={speak}
                 animationType={animationType}
-                onLoad={() => setAvatarLoaded(true)} 
-                position={[0, -1.0, 0]} 
+                animationContextKey={animationContextKey}
+                onLoad={() => setAvatarLoaded(true)}
+                position={[0, -1.0, 0]}
                 scale={0.95}
-                rotation={[0, 0, 0]} 
+                rotation={[0, 0, 0]}
               />
-              <OrbitControls 
-                enableZoom={false} 
+              <OrbitControls
+                enableZoom={false}
                 enablePan={false}
                 minPolarAngle={Math.PI / 3}
                 maxPolarAngle={Math.PI / 1.8}
@@ -59,10 +62,10 @@ const TeacherBubble: React.FC<TeacherBubbleProps> = ({
           </div>
         </div>
       ) : (
-        <img 
-          src="/lovable-uploads/e4e7aa88-b633-45df-8859-71a60a13e30a.png" 
-          alt="Institutrice (2D)" 
-          className="w-32 h-32 object-contain animate-pulse" 
+        <img
+          src="/lovable-uploads/e4e7aa88-b633-45df-8859-71a60a13e30a.png"
+          alt="Institutrice (2D)"
+          className="w-32 h-32 object-contain animate-pulse"
         />
       )}
 
@@ -72,3 +75,4 @@ const TeacherBubble: React.FC<TeacherBubbleProps> = ({
 };
 
 export default TeacherBubble;
+
